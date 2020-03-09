@@ -135,7 +135,6 @@ namespace MatrixLibrary
 	template<class T>
 	class Matrix : public OpenCL
 	{
-		using MathFunction = T (*)(T);
 
 	private:
 		int m_rows;
