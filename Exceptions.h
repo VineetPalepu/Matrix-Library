@@ -1,0 +1,10 @@
+#pragma once
+class INDEX_OUT_OF_BOUNDS{};
+
+class MATRIX_SHAPE_ERROR{};
+
+class NO_OPENCL_IMPLEMENTATION_FOUND {};
+
+class NO_OPENCL_DEVICE_FOUND {};
+
+class OPENCL_ERROR {};

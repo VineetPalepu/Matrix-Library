@@ -1,3 +1,11 @@
+# Ignore large data files
+*.csv
+
+# Ignore vscode files
+.vscode/*
+build/*
+cmake
+
 # Prerequisites
 *.d
 
