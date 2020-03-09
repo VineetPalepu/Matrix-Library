@@ -390,7 +390,7 @@ namespace MatrixLibrary
 			return result;
 		}
 
-		void randInit(T min = 0, T max = 1)
+		Matrix randInit(T min = 0, T max = 1)
 		{
 			Random<T> rand(min, max);
 			
@@ -398,6 +398,8 @@ namespace MatrixLibrary
 			{
 				num = rand.getNext();
 			}
+
+			return *this;
 		}
 		
 #pragma endregion
