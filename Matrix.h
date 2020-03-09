@@ -147,8 +147,8 @@ namespace MatrixLibrary
 		{
 			Initializer()
 			{
-				OpenCL::clSetup();
-				Matrix::createProgram();
+				if (OpenCL::clSetup() < 0 || Matrix::createProgram() < 0)
+					supportsCL = false;
 			}
 		};
 
