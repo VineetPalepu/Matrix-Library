@@ -1,19 +1,21 @@
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.0)
 project(Matrix)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-set(EXECUTABLE_OUTPUT_PATH ./${CMAKE_BUILD_TYPE})
-set(SOURCE Main.cpp)
+file(GLOB INCLUDES "external/*/include" "include")
+include_directories(${INCLUDES})
 
-add_executable(${PROJECT_NAME} ${SOURCE})
+file(GLOB SOURCES "src/*.cpp")
 
-set(OpenCL_DIR "${VCPKG_ROOT}/installed/x64-windows/share/opencl")
+add_executable(${PROJECT_NAME} ${SOURCES})
+
+if(WIN32)
+    set(OpenCL_DIR "${VCPKG_ROOT}/installed/x64-windows/share/opencl")
+endif()
 
 find_package(OpenCL REQUIRED)
-if (OpenCL_FOUND)
-    include_directories(${OpenCL_INCLUDE_DIRS})
-    link_directories(${OpenCL_LIBRARY})
-    target_link_libraries(${PROJECT_NAME} ${OpenCL_LIBRARIES})
-endif()
+include_directories(${OpenCL_INCLUDE_DIRS})
+link_directories(${OpenCL_LIBRARY})
+target_link_libraries(${PROJECT_NAME} ${OpenCL_LIBRARIES})

@@ -1,6 +1,5 @@
 #include "Matrix.h"
 #include "Timer.h"
-#include <conio.h>
 #include <complex>
 
 using namespace MatrixLibrary;

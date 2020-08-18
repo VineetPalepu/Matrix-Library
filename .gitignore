@@ -2,9 +2,8 @@
 *.csv
 
 # Ignore vscode files
-.vscode/*
-build/*
-cmake
+.vscode/
+build/
 
 # Prerequisites
 *.d
