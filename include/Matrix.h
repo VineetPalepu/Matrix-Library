@@ -9,7 +9,6 @@
 #include <streambuf>
 #include <regex>
 #include <CL/cl2.hpp>
-#include "Exceptions.h"
 
 #define DEVICE_GPU 0
 #define DEVICE_CPU 1
@@ -138,6 +137,14 @@ namespace MatrixLibrary
 				return distr(generator);
 			}
 		};
+#pragma endregion
+
+#pragma region Exceptions
+		class INDEX_OUT_OF_BOUNDS{};
+		class MATRIX_SHAPE_ERROR{};
+		class NO_OPENCL_IMPLEMENTATION_FOUND{};
+		class NO_OPENCL_DEVICE_FOUND{};
+		class OPENCL_ERROR{};
 #pragma endregion
 
 		int m_rows;
