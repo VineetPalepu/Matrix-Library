@@ -1,4 +1,5 @@
 #pragma once
+#define CL_HPP_TARGET_OPENCL_VERSION 220
 #include <tuple>
 #include <iostream>
 #include <iomanip>
@@ -13,11 +14,14 @@
 #define DEVICE_GPU 0
 #define DEVICE_CPU 1
 
-// TODO: get CL to not crash during long matrix multiplications
+// TODO: Get CL to not crash during long matrix multiplications
 // figure out why CL crashes on large matrix multiplications
 // Use multiple kernels to prevent long running kernel from
 // stopping execution. Graphics drivers stop a process if 
 // it hangs for a long time
+// TODO: Add resize method? or at least figure out whether or not
+// a feature is necessary. Assignment has the same functionality, 
+// but a resize() method could be more intuitive.
 namespace MatrixLibrary
 {
 
@@ -30,6 +34,7 @@ namespace MatrixLibrary
 		int m_columns;
 		int m_size;
 		T *m_data;
+		const bool m_rowMajor;
 
 #pragma region OpenCL Static Base
 		class OpenCL
@@ -249,8 +254,8 @@ namespace MatrixLibrary
 		{
 		}
 
-		Matrix(int r, int c)
-			:m_rows{ r }, m_columns{ c }, m_size{ r * c }, m_data{ new T[m_size] {} }
+		Matrix(int r, int c, bool rowMajor = true)
+			:m_rows{ r }, m_columns{ c }, m_size{ r * c }, m_data{ new T[m_size] {} }, m_rowMajor{ rowMajor }
 		{
 			if (r < 0 || c < 0)
 			{
@@ -260,7 +265,7 @@ namespace MatrixLibrary
 		}
 
 		Matrix(const Matrix& mat)
-			:Matrix{ mat.m_rows, mat.m_columns }
+			:Matrix{ mat.m_rows, mat.m_columns, mat.m_rowMajor }
 		{
 			for (int i = 0; i < m_size; i++)
 			{
@@ -269,7 +274,7 @@ namespace MatrixLibrary
 		}
 
 		Matrix(Matrix&& mat)
-			:m_rows{ mat.m_rows }, m_columns{ mat.m_columns }, m_size{ m_rows * m_columns }, m_data{ mat.m_data }
+			:m_rows{ mat.m_rows }, m_columns{ mat.m_columns }, m_size{ m_rows * m_columns }, m_data{ mat.m_data }, m_rowMajor{ mat.m_rowMajor}
 		{
 			mat.m_rows = 0;
 			mat.m_columns = 0;
@@ -436,21 +441,28 @@ namespace MatrixLibrary
 			return m_columns;
 		}
 
+		// TODO: Fix matrix multiplication, assignment, etc. with data layout
+		bool isRowMajor() const
+		{
+			return m_rowMajor;
+		}
+
 		friend std::ostream& operator<< (std::ostream& os, const Matrix<T>& mat)
 		{
 			os << std::setfill(' ');
+
 			os << "[[";
-			for (int i = 0; i < mat.m_size; i++)
+			for (int i = 0; i < mat.m_rows; i++)
 			{
-				os << " " << std::setw(os.precision() + 3) << mat.m_data[i] << " ";
-				if (i == mat.m_size - 1)
-					os << "]]\n";
-				else if (i % mat.m_columns == mat.m_columns - 1)
+				for (int j = 0; j < mat.m_columns; j++)
+				{
+					os << " " << std::setw(os.precision() + 3) << mat(i, j) << " ";
+				}
+				if (i != mat.m_rows - 1)
 					os << "],\n [";
 			}
-			if (mat.m_size == 0)
-				os << " ]]\n";
-			os << "\n";
+			os << "]]\n";
+
 			return os;
 		}
 
@@ -745,17 +757,21 @@ namespace MatrixLibrary
 #pragma region Misc Operators
 		T& operator()(int row, int column)
 		{
-			return const_cast<T&>(std::as_const(*this).operator(row, column));
+			return const_cast<T&>(std::as_const(*this).operator()(row, column));
 		}
 
 		const T& operator()(int row, int column) const
 		{
-			return m_data[row * m_columns + column];
+			if (m_rowMajor)
+				return m_data[row * m_columns + column];
+			else
+				return m_data[column * m_rows + row];
+			
 		}
 
 		T& operator[](int index)
 		{
-			return const_cast<T&>(std::as_const(*this).operator[index])
+			return const_cast<T&>(std::as_const(*this).operator()[index]);
 		}
 
 		const T& operator[](int index) const
