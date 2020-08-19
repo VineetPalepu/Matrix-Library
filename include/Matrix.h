@@ -745,32 +745,17 @@ namespace MatrixLibrary
 #pragma region Misc Operators
 		T& operator()(int row, int column)
 		{
-			/*if (row > m_rows || column > m_columns)
-			{
-				cerr << "size: " << shape() << ", got " << row << "," << column << endl;
-				throw INDEX_OUT_OF_BOUNDS();
-			}*/
-
-			return m_data[row * m_columns + column];;
+			return const_cast<T&>(std::as_const(*this).operator(row, column));
 		}
 
 		const T& operator()(int row, int column) const
 		{
-			/*if (row > m_rows || column > m_columns)
-			{
-				cerr << "size: " << shape() << ", got " << row << "," << column << endl;
-				throw INDEX_OUT_OF_BOUNDS();
-			}*/
-
 			return m_data[row * m_columns + column];
 		}
 
 		T& operator[](int index)
 		{
-			if (index < 0 || index >= m_size)
-				throw INDEX_OUT_OF_BOUNDS();
-
-			return m_data[index];
+			return const_cast<T&>(std::as_const(*this).operator[index])
 		}
 
 		const T& operator[](int index) const
