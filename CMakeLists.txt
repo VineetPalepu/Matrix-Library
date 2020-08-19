@@ -3,6 +3,7 @@ project(Matrix)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_BUILD_TYPE Release)
 
 file(GLOB INCLUDES "external/*/include" "include")
 include_directories(${INCLUDES})

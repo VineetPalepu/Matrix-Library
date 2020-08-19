@@ -244,16 +244,6 @@ namespace MatrixLibrary
 
 #pragma region Constructors / Assignment
 
-		Matrix()
-			:Matrix{1, 1}
-		{
-		}
-
-		Matrix(int r)
-			:Matrix{r, 1}
-		{
-		}
-
 		Matrix(int r, int c, bool rowMajor = true)
 			:m_rows{ r }, m_columns{ c }, m_size{ r * c }, m_data{ new T[m_size] {} }, m_rowMajor{ rowMajor }
 		{
@@ -267,9 +257,13 @@ namespace MatrixLibrary
 		Matrix(const Matrix& mat)
 			:Matrix{ mat.m_rows, mat.m_columns, mat.m_rowMajor }
 		{
-			for (int i = 0; i < m_size; i++)
+			std::cout << "Copy Constructor" << std::endl;
+			for (int i = 0; i < m_rows; i++)
 			{
-				m_data[i] = mat.m_data[i];
+				for (int j = 0; j < m_columns; j++)
+				{
+					(*this)(i, j) = mat(i, j);
+				}
 			}
 		}
 
@@ -300,11 +294,13 @@ namespace MatrixLibrary
 				m_rows = mat.m_rows;
 				m_columns = mat.m_columns;
 
-				for (int i = 0; i < m_size; i++)
+				for (int i = 0; i < m_rows; i++)
 				{
-					m_data[i] = mat.m_data[i];
+					for (int j = 0; j < m_columns; j++)
+					{
+						(*this)(i, j) = mat(i, j);
+					}
 				}
-				
 			}
 			return *this;
 		}
@@ -320,6 +316,7 @@ namespace MatrixLibrary
 				m_columns = mat.m_columns;
 				m_size = mat.m_size;
 				m_data = mat.m_data;
+				m_rowMajor = mat.m_rowMajor;
 
 				mat.m_data = nullptr;
 			}
@@ -328,23 +325,30 @@ namespace MatrixLibrary
 
 		Matrix& operator=(T val)
 		{
-			for (int i = 0; i < m_size; i++)
+			for (int i = 0; i < m_rows; i++)
 			{
-				m_data[i] = val;
+				for(int j = 0; j < m_columns; j++)
+				{
+					(*this)(i, j) = val;
+				}
 			}
 			return *this;
 		}
 
 		template <class U> operator Matrix<U>()
 		{
-			Matrix<U> result{ m_rows, m_columns };
-			for (int i = 0; i < m_size; i++)
+			Matrix<U> result{ m_rows, m_columns, m_rowMajor };
+			for (int i = 0; i < m_rows; i++)
 			{
-				result[i] = (U)(*this)[i];
+				for (int j = 0; j < m_columns; j++)
+				{
+					(*this)(i, j) = (U)(*this)(i, j);
+				}
 			}
 			return result;
 		}
 
+		// Need to fix to make it work for column major matrices
 		static Matrix fromString(const std::string& str, char itemSplitter, char rowSplitter)
 		{
 			int cols = 1;
@@ -403,7 +407,7 @@ namespace MatrixLibrary
 			return result;
 		}
 
-		Matrix randInit(T min = 0, T max = 1)
+		Matrix& randInit(T min = 0, T max = 1)
 		{
 			Random<T> rand(min, max);
 			
@@ -441,7 +445,6 @@ namespace MatrixLibrary
 			return m_columns;
 		}
 
-		// TODO: Fix matrix multiplication, assignment, etc. with data layout
 		bool isRowMajor() const
 		{
 			return m_rowMajor;
@@ -476,11 +479,12 @@ namespace MatrixLibrary
 			return "(" + std::to_string(m_rows) + ", " + std::to_string(m_columns) + ")";
 		}
 
-		std::string toString(char itemDelimiter, char rowDelimiter) const
+		std::string toString(std::string itemDelimiter, std::string rowDelimiter, int precision = 3) const
 		{
 			std::string s;
 			s.reserve(m_size * 5);
 			std::stringstream result(s);
+			result.precision(precision);
 			for (int i = 0; i < m_rows; i++)
 			{
 				for (int j = 0; j < m_columns; j++)
@@ -496,12 +500,17 @@ namespace MatrixLibrary
 			return result.str();
 		}
 
-		void toFile(std::string fileName, char itemDelimiter, char rowDelimiter) const
+		void toFile(std::string fileName, std::string itemDelimiter, std::string rowDelimiter, int precision = 3) const
 		{
 			std::ofstream f(fileName);
 			f << toString(itemDelimiter, rowDelimiter);
 		}
 
+		T* data()
+		{
+			return m_data;
+		}
+		
 		T* begin()
 		{
 			return m_data;
@@ -776,6 +785,7 @@ namespace MatrixLibrary
 
 		const T& operator[](int index) const
 		{
+			// Get rid of bounds checking?
 			if (index < 0 || index >= m_size)
 				throw INDEX_OUT_OF_BOUNDS();
 
@@ -788,17 +798,15 @@ namespace MatrixLibrary
 			if (m_rows != mat.m_rows || m_columns != mat.m_columns)
 				return false;
 
-			bool result = true;
-
-			for (int i = 0; i < m_size; i++)
+			for (int i = 0; i < m_rows; i++)
 			{
-				if (m_data[i] != mat.m_data[i])
+				for (int j = 0; j < m_columns; j++)
 				{
-					std::cout << "Unequal values at " << i << ": " << m_data[i] << ", " << mat.m_data[i] << std::endl;
-					result = false;
+					if ((*this)(i, j) != mat(i, j))
+						return false;
 				}
 			}
-			return result;
+			return true;
 		}
 
 		bool operator!=(const Matrix& mat)
@@ -815,9 +823,13 @@ namespace MatrixLibrary
 				throw MATRIX_SHAPE_ERROR();
 
 			Matrix result{ mat1.m_rows,mat1.m_columns };
-			for (int i = 0; i < result.m_size; i++)
+
+			for (int i = 0; i < result.m_rows; i++)
 			{
-				result.m_data[i] = mat1.m_data[i] + mat2.m_data[i];
+				for (int j = 0; j < result.m_columns; j++)
+				{
+					result(i, j) = mat1(i, j) + mat2(i, j);
+				}
 			}
 
 			return result;
@@ -861,9 +873,13 @@ namespace MatrixLibrary
 				throw MATRIX_SHAPE_ERROR();
 
 			Matrix result{ mat1.m_rows, mat1.m_columns };
-			for (int i = 0; i < result.m_size; i++)
+
+			for (int i = 0; i < result.m_rows; i++)
 			{
-				result.m_data[i] = mat1.m_data[i] - mat2.m_data[i];
+				for (int j = 0; j < result.m_columns; j++)
+				{
+					result(i, j) = mat1(i, j) - mat2(i, j);
+				}
 			}
 
 			return result;
@@ -915,7 +931,8 @@ namespace MatrixLibrary
 				throw MATRIX_SHAPE_ERROR();
 			}
 
-			if (supportsCL)
+			// TODO: implement clMul for mix of row and column major matrices
+			if (supportsCL && mat1.isRowMajor() && mat2.isRowMajor())
 				return clMul(mat1, mat2);
 			else
 			{
