@@ -21,123 +21,125 @@
 // it hangs for a long time
 namespace MatrixLibrary
 {
-#pragma region OpenCL Static Base
-	class OpenCL
-	{
-	protected:
-		static inline cl_context context;
-		static inline cl_command_queue queue;
-		static inline cl_device_id device;
-		static inline const int DEVICE = DEVICE_CPU;
-		static inline bool first = true;
-		static inline std::string code;
-		static int clSetup()
-		{
-			if (!first)
-				return 0;
-
-			first = false;
-
-			//std::cout << "Listing Platform Devices" << std::endl;
-			cl_platform_id platform;
-			clGetPlatformIDs(1, &platform, nullptr);
-			char name[64];
-			clGetPlatformInfo(platform, CL_PLATFORM_NAME, 64 * sizeof(char), name, NULL);
-			//std::cout << "Platform:" << name << std::endl;
-			cl_uint numDevices;
-			clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, NULL, &numDevices);
-			cl_device_id* devices = new cl_device_id[numDevices];
-			clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, numDevices, devices, NULL);
-			for (int i = 0; i < numDevices; i++)
-			{
-				clGetDeviceInfo(devices[i], CL_DEVICE_NAME, 64 * sizeof(char), name, NULL);
-				//std::cout << "\tDevice " << i << ": " << name << std::endl;
-			}
-
-			//std::cout << "Creating Context" << std::endl;
-			cl_int err;
-			context = clCreateContext(NULL, numDevices, devices, NULL, NULL, &err);
-			if (err != 0)
-			{
-				std::cout << "Error creating context: " << err << std::endl;
-				delete[] devices;
-				return -1;
-			}
-			
-			device = devices[DEVICE];
-
-			//std::cout << "Creating Command Queue" << std::endl;
-			queue = clCreateCommandQueueWithProperties(context, device, NULL, &err);
-			if (err != 0)
-			{
-				std::cout << "Error creating queue: " << err << std::endl;
-				delete[] devices;
-				return -1;
-			}
-
-			std::fstream inputFile;
-			size_t length;
-			inputFile.open("mat_mul_kernel.cl", std::ios::in | std::ios_base::binary);
-			inputFile.seekg(0, std::ios::end);
-			length = inputFile.tellg();
-			inputFile.seekg(0, std::ios::beg);
-			code = std::string((std::istreambuf_iterator<char>(inputFile)), std::istreambuf_iterator<char>());
-
-			delete[] devices;
-			return 0;
-		}
-	};
-#pragma endregion
-
-#pragma region Random
-	template<class NumericType, typename Enable = void> class Random;
-
-	template<class FloatingType>
-	class Random<FloatingType, typename std::enable_if<std::is_floating_point<FloatingType>::value>::type>
-	{
-		std::random_device rand_dev;
-		std::mt19937 generator;
-		std::uniform_real_distribution<FloatingType> distr;
-
-	public:
-		Random(FloatingType min, FloatingType max)
-			:rand_dev{}, generator{ rand_dev() }, distr{ min, max }
-		{
-		}
-		
-		FloatingType getNext()
-		{
-			return distr(generator);
-		}
-
-	};
-	template<class IntegralType>
-	class Random<IntegralType, typename std::enable_if<std::is_integral<IntegralType>::value>::type>
-	{
-		std::random_device rand_dev;
-		std::mt19937 generator;
-		std::uniform_int_distribution<IntegralType> distr;
-
-	public:
-		Random(IntegralType min, IntegralType max)
-			:rand_dev{}, generator{ rand_dev() }, distr{ min, max }
-		{
-		}
-
-		IntegralType getNext()
-		{
-			return distr(generator);
-		}
-
-	};
-#pragma endregion
 
 	template<class T>
-	class Matrix : public OpenCL
+	class Matrix
 	{
 		using MathFunction = T (*)(T);
 
-	private:
+	  private:
+
+#pragma region OpenCL Static Base
+		class OpenCL
+		{
+			friend class Matrix<T>;
+		  private:
+			static inline cl_context context;
+			static inline cl_command_queue queue;
+			static inline cl_device_id device;
+			static inline const int DEVICE = DEVICE_CPU;
+			static inline bool first = true;
+			static inline std::string code;
+			static int clSetup()
+			{
+				if (!first)
+					return 0;
+
+				first = false;
+
+				//std::cout << "Listing Platform Devices" << std::endl;
+				cl_platform_id platform;
+				clGetPlatformIDs(1, &platform, nullptr);
+				char name[64];
+				clGetPlatformInfo(platform, CL_PLATFORM_NAME, 64 * sizeof(char), name, NULL);
+				//std::cout << "Platform:" << name << std::endl;
+				cl_uint numDevices;
+				clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, NULL, &numDevices);
+				cl_device_id *devices = new cl_device_id[numDevices];
+				clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, numDevices, devices, NULL);
+				for (int i = 0; i < numDevices; i++)
+				{
+					clGetDeviceInfo(devices[i], CL_DEVICE_NAME, 64 * sizeof(char), name, NULL);
+					//std::cout << "\tDevice " << i << ": " << name << std::endl;
+				}
+
+				//std::cout << "Creating Context" << std::endl;
+				cl_int err;
+				context = clCreateContext(NULL, numDevices, devices, NULL, NULL, &err);
+				if (err != 0)
+				{
+					std::cout << "Error creating context: " << err << std::endl;
+					delete[] devices;
+					return -1;
+				}
+
+				device = devices[DEVICE];
+
+				//std::cout << "Creating Command Queue" << std::endl;
+				queue = clCreateCommandQueueWithProperties(context, device, NULL, &err);
+				if (err != 0)
+				{
+					std::cout << "Error creating queue: " << err << std::endl;
+					delete[] devices;
+					return -1;
+				}
+
+				std::fstream inputFile;
+				size_t length;
+				inputFile.open("mat_mul_kernel.cl", std::ios::in | std::ios_base::binary);
+				inputFile.seekg(0, std::ios::end);
+				length = inputFile.tellg();
+				inputFile.seekg(0, std::ios::beg);
+				code = std::string((std::istreambuf_iterator<char>(inputFile)), std::istreambuf_iterator<char>());
+
+				delete[] devices;
+				return 0;
+			}
+		};
+#pragma endregion
+
+#pragma region Random
+		template <class NumericType, typename Enable = void>
+		class Random;
+
+		template <class FloatingType>
+		class Random<FloatingType, typename std::enable_if<std::is_floating_point<FloatingType>::value>::type>
+		{
+			std::random_device rand_dev;
+			std::mt19937 generator;
+			std::uniform_real_distribution<FloatingType> distr;
+
+		public:
+			Random(FloatingType min, FloatingType max)
+				: rand_dev{}, generator{rand_dev()}, distr{min, max}
+			{
+			}
+
+			FloatingType getNext()
+			{
+				return distr(generator);
+			}
+		};
+		template <class IntegralType>
+		class Random<IntegralType, typename std::enable_if<std::is_integral<IntegralType>::value>::type>
+		{
+			std::random_device rand_dev;
+			std::mt19937 generator;
+			std::uniform_int_distribution<IntegralType> distr;
+
+		public:
+			Random(IntegralType min, IntegralType max)
+				: rand_dev{}, generator{rand_dev()}, distr{min, max}
+			{
+			}
+
+			IntegralType getNext()
+			{
+				return distr(generator);
+			}
+		};
+#pragma endregion
+
 		int m_rows;
 		int m_columns;
 		int m_size;
@@ -180,10 +182,10 @@ namespace MatrixLibrary
 			//std::cout << "Creating Program" << std::endl;
 			cl_int err;
 
-			code = std::regex_replace(code, std::regex("T"), typeid(T).name());
-			const char* src = code.c_str();
+			OpenCL::code = std::regex_replace(OpenCL::code, std::regex("T"), typeid(T).name());
+			const char* src = OpenCL::code.c_str();
 
-			program = clCreateProgramWithSource(context, 1, &src, NULL, &err);
+			program = clCreateProgramWithSource(OpenCL::context, 1, &src, NULL, &err);
 			if (err != 0)
 			{
 				std::cout << "Error creating program: " << err << std::endl;
@@ -191,16 +193,16 @@ namespace MatrixLibrary
 			}
 
 			//std::cout << "Building Program" << std::endl;
-			err = clBuildProgram(program, 1, &device, NULL, NULL, NULL);
+			err = clBuildProgram(program, 1, &OpenCL::device, NULL, NULL, NULL);
 			if (err != 0)
 			{
 				std::cout << "Error building program: " << err << std::endl;
 				if (err == -11)
 				{
 					size_t log_size;
-					clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, NULL, NULL, &log_size);
+					clGetProgramBuildInfo(program, OpenCL::device, CL_PROGRAM_BUILD_LOG, NULL, NULL, &log_size);
 					char* log = new char[log_size];
-					clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, log, NULL);
+					clGetProgramBuildInfo(program, OpenCL::device, CL_PROGRAM_BUILD_LOG, log_size, log, NULL);
 					std::cout << std::endl << log << std::endl;
 					delete[] log;
 				}
@@ -218,16 +220,16 @@ namespace MatrixLibrary
 		
 		static void clFlushAll() // call at end of program (automatically?)
 		{
-			clFlush(queue);
-			clFinish(queue);
+			clFlush(OpenCL::queue);
+			clFinish(OpenCL::queue);
 			clReleaseKernel(mat_mul_kernel);
 			clReleaseProgram(program);
-			clReleaseCommandQueue(queue);
-			clReleaseContext(context);
+			clReleaseCommandQueue(OpenCL::queue);
+			clReleaseContext(OpenCL::context);
 		}
 #pragma endregion
 
-	public:
+	  public:
 
 #pragma region Constructors / Assignment
 
@@ -970,19 +972,19 @@ namespace MatrixLibrary
 			Matrix result{ mat1.rows(), mat2.columns() };
 			//cout << "Creating Buffers" << endl;
 			cl_int err;
-			cl_mem mat1Buf = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(T) * mat1.size(), NULL, &err);
+			cl_mem mat1Buf = clCreateBuffer(OpenCL::context, CL_MEM_READ_ONLY, sizeof(T) * mat1.size(), NULL, &err);
 			if (err != 0)
 			{
 				std::cout << "Error creating mat1Buf: " << err << std::endl;
 				throw OPENCL_ERROR();
 			}
-			cl_mem mat2Buf = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(T) * mat2.size(), NULL, &err);
+			cl_mem mat2Buf = clCreateBuffer(OpenCL::context, CL_MEM_READ_ONLY, sizeof(T) * mat2.size(), NULL, &err);
 			if (err != 0)
 			{
 				std::cout << "Error creating mat2Buf: " << err << std::endl;
 				throw OPENCL_ERROR();
 			}
-			cl_mem resultBuf = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(T) * result.size(), NULL, &err);
+			cl_mem resultBuf = clCreateBuffer(OpenCL::context, CL_MEM_WRITE_ONLY, sizeof(T) * result.size(), NULL, &err);
 			if (err != 0)
 			{
 				std::cout << "Error creating resultBuf: " << err << std::endl;
@@ -990,13 +992,13 @@ namespace MatrixLibrary
 			}
 
 			//cout << "Copying Data to Buffers" << endl;
-			err = clEnqueueWriteBuffer(queue, mat1Buf, CL_TRUE, 0, mat1.size() * sizeof(T), mat1.m_data, 0, NULL, NULL);
+			err = clEnqueueWriteBuffer(OpenCL::queue, mat1Buf, CL_TRUE, 0, mat1.size() * sizeof(T), mat1.m_data, 0, NULL, NULL);
 			if (err != 0)
 			{
 				std::cout << "Error writing to mat1Buf: " << err << std::endl;
 				throw OPENCL_ERROR();
 			}
-			err = clEnqueueWriteBuffer(queue, mat2Buf, CL_TRUE, 0, mat2.size() * sizeof(T), mat2.m_data, 0, NULL, NULL);
+			err = clEnqueueWriteBuffer(OpenCL::queue, mat2Buf, CL_TRUE, 0, mat2.size() * sizeof(T), mat2.m_data, 0, NULL, NULL);
 			if (err != 0)
 			{
 				std::cout << "Error writing to mat2Buf: " << err << std::endl;
@@ -1052,7 +1054,7 @@ namespace MatrixLibrary
 			size_t* l_work_size = new size_t[DIMS];
 			l_work_size[0] = 16;
 			l_work_size[1] = 16;
-			err = clEnqueueNDRangeKernel(queue, mat_mul_kernel, DIMS, NULL, g_work_size, l_work_size, 0, NULL, NULL);
+			err = clEnqueueNDRangeKernel(OpenCL::queue, mat_mul_kernel, DIMS, NULL, g_work_size, l_work_size, 0, NULL, NULL);
 			if (err != 0)
 			{
 				std::cout << "Error enqueueing kernel: " << err << std::endl;
@@ -1065,7 +1067,7 @@ namespace MatrixLibrary
 			delete[] l_work_size;
 
 			//cout << "Copying Buffer to Host" << endl;
-			err = clEnqueueReadBuffer(queue, resultBuf, CL_TRUE, 0, sizeof(T) * result.size(), result.m_data, 0, NULL, NULL);
+			err = clEnqueueReadBuffer(OpenCL::queue, resultBuf, CL_TRUE, 0, sizeof(T) * result.size(), result.m_data, 0, NULL, NULL);
 			if (err != 0)
 			{
 				std::cout << "Error reading resultBuf: " << err << std::endl;
