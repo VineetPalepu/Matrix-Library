@@ -24,9 +24,12 @@ namespace MatrixLibrary
 	template<class T>
 	class Matrix
 	{
-		using MathFunction = T (*)(T);
-
 	  private:
+		using MathFunction = T (*)(T);
+	    int m_rows;
+		int m_columns;
+		int m_size;
+		T *m_data;
 
 #pragma region OpenCL Static Base
 		class OpenCL
@@ -147,10 +150,6 @@ namespace MatrixLibrary
 		class OPENCL_ERROR{};
 #pragma endregion
 
-		int m_rows;
-		int m_columns;
-		int m_size;
-		T* m_data;
 #pragma region OpenCL
 		struct Initializer
 		{
