@@ -1,5 +1,5 @@
 #pragma once
-#define CL_HPP_TARGET_OPENCL_VERSION 220
+#define CL_HPP_TARGET_OPENCL_VERSION 210
 #include <tuple>
 #include <iostream>
 #include <iomanip>
