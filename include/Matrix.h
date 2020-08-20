@@ -36,7 +36,7 @@ namespace MatrixLibrary
 		T *m_data;
 		const bool m_rowMajor;
 
-#pragma region OpenCL Static Base
+#pragma region OpenCL Static Initialization Code
 		class OpenCL
 		{
 			friend class Matrix<T>;
@@ -47,6 +47,9 @@ namespace MatrixLibrary
 			static inline const int DEVICE = DEVICE_CPU;
 			static inline bool first = true;
 			static inline std::string code;
+			
+			// TODO: Instead of using a DEVICE_GPU or DEVICE_CPU constant, change the clGetPlatformInfo() call
+			// to query CL_DEVICE_TYPE_CPU or CL_DEVICE_TYPE_GPU instead
 			static int clSetup()
 			{
 				if (!first)
@@ -62,6 +65,10 @@ namespace MatrixLibrary
 				//std::cout << "Platform:" << name << std::endl;
 				cl_uint numDevices;
 				clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, NULL, &numDevices);
+				if (numDevices == 0)
+				{
+					std::cout << "No valid OpenCL device found" << std::endl; 
+				}
 				cl_device_id *devices = new cl_device_id[numDevices];
 				clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, numDevices, devices, NULL);
 				for (int i = 0; i < numDevices; i++)
@@ -155,20 +162,20 @@ namespace MatrixLibrary
 		class OPENCL_ERROR{};
 #pragma endregion
 
-#pragma region OpenCL
+#pragma region OpenCL Initializer
 		struct Initializer
 		{
 			Initializer()
 			{
-				if (OpenCL::clSetup() < 0 || Matrix::createProgram() < 0)
-					supportsCL = false;
+				if (OpenCL::clSetup() == 0 && Matrix::createProgram() == 0)
+					supportsCL = true;
 			}
 		};
 
 		static inline Initializer init = Initializer();
 		static inline cl_program program;
 		static inline cl_kernel mat_mul_kernel;
-		static inline bool supportsCL;
+		static inline bool supportsCL = false;
 
 		static int createProgram()
 		{
@@ -228,7 +235,121 @@ namespace MatrixLibrary
 				return -1;
 			}
 		}
-		
+
+		static Matrix clMul(const Matrix &mat1, const Matrix &mat2)
+		{
+			Matrix result{mat1.rows(), mat2.columns()};
+			//cout << "Creating Buffers" << endl;
+			cl_int err;
+			cl_mem mat1Buf = clCreateBuffer(OpenCL::context, CL_MEM_READ_ONLY, sizeof(T) * mat1.size(), NULL, &err);
+			if (err != 0)
+			{
+				std::cout << "Error creating mat1Buf: " << err << std::endl;
+				throw OPENCL_ERROR();
+			}
+			cl_mem mat2Buf = clCreateBuffer(OpenCL::context, CL_MEM_READ_ONLY, sizeof(T) * mat2.size(), NULL, &err);
+			if (err != 0)
+			{
+				std::cout << "Error creating mat2Buf: " << err << std::endl;
+				throw OPENCL_ERROR();
+			}
+			cl_mem resultBuf = clCreateBuffer(OpenCL::context, CL_MEM_WRITE_ONLY, sizeof(T) * result.size(), NULL, &err);
+			if (err != 0)
+			{
+				std::cout << "Error creating resultBuf: " << err << std::endl;
+				throw OPENCL_ERROR();
+			}
+
+			//cout << "Copying Data to Buffers" << endl;
+			err = clEnqueueWriteBuffer(OpenCL::queue, mat1Buf, CL_TRUE, 0, mat1.size() * sizeof(T), mat1.m_data, 0, NULL, NULL);
+			if (err != 0)
+			{
+				std::cout << "Error writing to mat1Buf: " << err << std::endl;
+				throw OPENCL_ERROR();
+			}
+			err = clEnqueueWriteBuffer(OpenCL::queue, mat2Buf, CL_TRUE, 0, mat2.size() * sizeof(T), mat2.m_data, 0, NULL, NULL);
+			if (err != 0)
+			{
+				std::cout << "Error writing to mat2Buf: " << err << std::endl;
+				throw OPENCL_ERROR();
+			}
+			int m1_rows = mat1.rows();
+			int m1_columns = mat1.columns();
+			int m2_columns = mat2.columns();
+			//cout << "Setting Kernel Arguments" << endl;
+			err = clSetKernelArg(mat_mul_kernel, 0, sizeof(mat1Buf), &mat1Buf);
+			if (err != 0)
+			{
+				std::cout << "Error setting arg 0: " << err << std::endl;
+				throw OPENCL_ERROR();
+			}
+			err = clSetKernelArg(mat_mul_kernel, 1, sizeof(mat2Buf), &mat2Buf);
+			if (err != 0)
+			{
+				std::cout << "Error setting arg 1: " << err << std::endl;
+				throw OPENCL_ERROR();
+			}
+			err = clSetKernelArg(mat_mul_kernel, 2, sizeof(int), &m1_rows);
+			if (err != 0)
+			{
+				std::cout << "Error setting arg 2: " << err << std::endl;
+				throw OPENCL_ERROR();
+			}
+			err = clSetKernelArg(mat_mul_kernel, 3, sizeof(int), &m1_columns);
+			if (err != 0)
+			{
+				std::cout << "Error setting arg 3: " << err << std::endl;
+				throw OPENCL_ERROR();
+			}
+			err = clSetKernelArg(mat_mul_kernel, 4, sizeof(int), &m2_columns);
+			if (err != 0)
+			{
+				std::cout << "Error setting arg 4: " << err << std::endl;
+				throw OPENCL_ERROR();
+			}
+			err = clSetKernelArg(mat_mul_kernel, 5, sizeof(resultBuf), &resultBuf);
+			if (err != 0)
+			{
+				std::cout << "Error setting arg 5: " << err << std::endl;
+				throw OPENCL_ERROR();
+			}
+
+			//cout << "Enqueueing Kernel" << endl;
+
+			const int DIMS = 2;
+			size_t *g_work_size = new size_t[DIMS];
+			g_work_size[0] = ((mat1.rows() / 16) + 1) * 16;
+			g_work_size[1] = ((mat2.columns() / 16) + 1) * 16;
+			size_t *l_work_size = new size_t[DIMS];
+			l_work_size[0] = 16;
+			l_work_size[1] = 16;
+			err = clEnqueueNDRangeKernel(OpenCL::queue, mat_mul_kernel, DIMS, NULL, g_work_size, l_work_size, 0, NULL, NULL);
+			if (err != 0)
+			{
+				std::cout << "Error enqueueing kernel: " << err << std::endl;
+				delete[] g_work_size;
+				delete[] l_work_size;
+
+				throw OPENCL_ERROR();
+			}
+			delete[] g_work_size;
+			delete[] l_work_size;
+
+			//cout << "Copying Buffer to Host" << endl;
+			err = clEnqueueReadBuffer(OpenCL::queue, resultBuf, CL_TRUE, 0, sizeof(T) * result.size(), result.m_data, 0, NULL, NULL);
+			if (err != 0)
+			{
+				std::cout << "Error reading resultBuf: " << err << std::endl;
+				throw OPENCL_ERROR();
+			}
+
+			clReleaseMemObject(mat1Buf);
+			clReleaseMemObject(mat2Buf);
+			clReleaseMemObject(resultBuf);
+
+			return result;
+		}
+
 		static void clFlushAll() // call at end of program (automatically?)
 		{
 			clFlush(OpenCL::queue);
@@ -349,52 +470,69 @@ namespace MatrixLibrary
 		}
 
 		// Need to fix to make it work for column major matrices
-		static Matrix fromString(const std::string& str, char itemSplitter, char rowSplitter)
+		static Matrix fromString(const std::string& str, const std::string& itemSplitter, const std::string& rowSplitter, bool rowMajor)
 		{
-			int cols = 1;
-			int rows = 1;
-			bool firstRow = true;
-			for (int i = 0; i < str.length(); i++)
-			{
-				if (str[i] == itemSplitter && firstRow)
-				{
-					cols++;
-				}
-				if (str[i] == rowSplitter)
-				{
-					rows++;
-					firstRow = false;
-				}
-			}
+			int rows = count(str, rowSplitter) + 1;
+			int columns = count(str.substr(0, str.find(rowSplitter)), itemSplitter) + 1;
+			Matrix result{ rows, columns, rowMajor };
 
-			Matrix result{ rows, cols };
-
-			int elements = 0;
-			std::istringstream textStream(str);
-			std::string row;
-			while (std::getline(textStream, row, rowSplitter))
+			int pos = 0;
+			for (int i = 0; i < rows; i++)
 			{
-				std::istringstream lineStream(row);
-				std::string element;
-				while (std::getline(lineStream, element, itemSplitter))
+				for (int j = 0; j < columns; j++)
 				{
-					if (elements < result.m_size)
+					size_t itemDelimitPos = str.find(itemSplitter, pos);
+					size_t rowDelimitPos = str.find(rowSplitter, pos);
+
+					int endPos = 0;
+					int delimLength = 0;
+					if (itemDelimitPos < rowDelimitPos)
 					{
-						result.m_data[elements] = stod(element);
+						endPos = itemDelimitPos;
+						delimLength = itemSplitter.size();
 					}
-					elements++;
+					else if (rowDelimitPos < itemDelimitPos)
+					{
+						endPos = rowDelimitPos;
+						delimLength = rowSplitter.size();
+					}
+					else
+					{
+						endPos = itemDelimitPos;
+						delimLength = std::max<size_t>(itemSplitter.size(), rowSplitter.size()); 
+					}
+					std::stringstream numstr{str.substr(pos, endPos)};
+					pos = endPos + delimLength;
+					
+					T num = 0;
+					numstr >> num;
+					result(i, j) = num; 
 				}
 			}
-
 			return result;
 		}
 
-		static Matrix fromFile(const std::string& fileName, char itemSplitter = ' ', char rowSplitter = '\n')
+		// make private once done
+		static int count(const std::string& str, const std::string& substr)
+		{
+			int count = 0;
+			int pos = -1;
+
+			while ((pos = str.find(substr, pos + 1)) != std::string::npos)
+			{
+				pos += substr.size();
+				count++;
+			}
+
+			return count;
+		}
+
+		static Matrix fromFile(const std::string& fileName, const std::string& itemSplitter, const std::string& rowSplitter, bool rowMajor)
 		{
 			std::ifstream i{ fileName };
 			std::stringstream s;
 			s << i.rdbuf();
-			return fromString(s.str(), itemSplitter, rowSplitter);
+			return fromString(s.str(), itemSplitter, rowSplitter, rowMajor);
 		}
 
 		static Matrix identity(int n)
@@ -410,10 +548,13 @@ namespace MatrixLibrary
 		Matrix& randInit(T min = 0, T max = 1)
 		{
 			Random<T> rand(min, max);
-			
-			for (T& num : *this)
+
+			for (int i = 0; i < m_rows; i++)
 			{
-				num = rand.getNext();
+				for (int j = 0; j < m_columns; j++)
+				{
+					(*this)(i, j) = rand.getNext();
+				}
 			}
 
 			return *this;
@@ -474,6 +615,16 @@ namespace MatrixLibrary
 			std::cout << std::setprecision(precision) << (*this);
 		}
 
+		void printArray(int precision = 3) const
+		{
+			std::cout << "[ ";
+			for (int i = 0; i < m_size; i++)
+			{
+				std::cout << m_data[i] << " ";
+			}
+			std::cout << "]" << std::endl;
+		}
+
 		std::string shape() const
 		{
 			return "(" + std::to_string(m_rows) + ", " + std::to_string(m_columns) + ")";
@@ -510,16 +661,7 @@ namespace MatrixLibrary
 		{
 			return m_data;
 		}
-		
-		T* begin()
-		{
-			return m_data;
-		}
 
-		T* end()
-		{
-			return m_data + size();
-		}
 #pragma endregion
 
 #pragma region Matrix Operations
@@ -714,10 +856,15 @@ namespace MatrixLibrary
 		T sum() const
 		{
 			T sum = 0;
-			for (int i = 0; i < m_size; i++)
+
+			for (int i = 0; i < m_rows; i++)
 			{
-				sum += m_data[i];
+				for (int j = 0; j < m_columns; j++)
+				{
+					sum += (*this)(i, j);
+				}
 			}
+
 			return sum;
 		}
 
@@ -775,7 +922,6 @@ namespace MatrixLibrary
 				return m_data[row * m_columns + column];
 			else
 				return m_data[column * m_rows + row];
-			
 		}
 
 		T& operator[](int index)
@@ -785,7 +931,6 @@ namespace MatrixLibrary
 
 		const T& operator[](int index) const
 		{
-			// Get rid of bounds checking?
 			if (index < 0 || index >= m_size)
 				throw INDEX_OUT_OF_BOUNDS();
 
@@ -794,7 +939,6 @@ namespace MatrixLibrary
 
 		bool operator==(const Matrix& mat)
 		{
-
 			if (m_rows != mat.m_rows || m_columns != mat.m_columns)
 				return false;
 
@@ -823,7 +967,6 @@ namespace MatrixLibrary
 				throw MATRIX_SHAPE_ERROR();
 
 			Matrix result{ mat1.m_rows,mat1.m_columns };
-
 			for (int i = 0; i < result.m_rows; i++)
 			{
 				for (int j = 0; j < result.m_columns; j++)
@@ -838,9 +981,12 @@ namespace MatrixLibrary
 		friend Matrix operator+(const Matrix& mat, T scl)
 		{
 			Matrix result{ mat.m_rows, mat.m_columns };
-			for (int i = 0; i < mat.m_size; i++)
+			for (int i = 0; i < result.m_rows; i++)
 			{
-				result.m_data[i] = mat.m_data[i] + scl;
+				for (int j = 0; j < result.m_columns; j++)
+				{
+					result(i, j) = mat(i, j) + scl;
+				}
 			}
 
 			return result;
@@ -873,7 +1019,6 @@ namespace MatrixLibrary
 				throw MATRIX_SHAPE_ERROR();
 
 			Matrix result{ mat1.m_rows, mat1.m_columns };
-
 			for (int i = 0; i < result.m_rows; i++)
 			{
 				for (int j = 0; j < result.m_columns; j++)
@@ -888,9 +1033,12 @@ namespace MatrixLibrary
 		friend Matrix operator-(const Matrix& mat, T scl)
 		{
 			Matrix result{ mat.m_rows, mat.m_columns };
-			for (int i = 0; i < mat.m_size; i++)
+			for (int i = 0; i < result.m_rows; i++)
 			{
-				result.m_data[i] = mat.m_data[i] - scl;
+				for (int j = 0; j < result.m_columns; j++)
+				{
+					result(i, j) = mat(i, j) - scl;
+				}
 			}
 
 			return result;
@@ -899,9 +1047,12 @@ namespace MatrixLibrary
 		friend Matrix operator-(T scl, const Matrix& mat)
 		{
 			Matrix result{ mat.m_rows, mat.m_columns };
-			for (int i = 0; i < mat.m_size; i++)
+			for (int i = 0; i < result.m_rows; i++)
 			{
-				result.m_data[i] = scl - mat.m_data[i];
+				for (int j = 0; j < result.m_columns; j++)
+				{
+					result(i, j) = scl - mat(i, j);
+				}
 			}
 
 			return result;
@@ -931,7 +1082,7 @@ namespace MatrixLibrary
 				throw MATRIX_SHAPE_ERROR();
 			}
 
-			// TODO: implement clMul for mix of row and column major matrices
+			// TODO: implement clMul for matrices stored in column major order
 			if (supportsCL && mat1.isRowMajor() && mat2.isRowMajor())
 				return clMul(mat1, mat2);
 			else
@@ -956,9 +1107,12 @@ namespace MatrixLibrary
 		friend Matrix operator*(const Matrix& mat, T scl)
 		{
 			Matrix result{ mat.m_rows, mat.m_columns };
-			for (int i = 0; i < mat.m_size; i++)
+			for (int i = 0; i < mat.m_rows; i++)
 			{
-				result.m_data[i] = mat.m_data[i] * scl;
+				for (int j = 0; j < mat.m_columns; j++)
+				{
+					result(i, j) = mat(i, j) * scl;
+				}
 			}
 			return result;
 		}
@@ -984,134 +1138,27 @@ namespace MatrixLibrary
 				throw MATRIX_SHAPE_ERROR();
 
 			Matrix result{ m_rows, m_columns };
-			for (int i = 0; i < m_size; i++)
+			for (int i = 0; i < mat.m_rows; i++)
 			{
-				result[i] = (*this)[i] * mat[i];
+				for (int j = 0; j < mat.m_columns; j++)
+				{
+					result(i, j) = (*this)(i, j) * mat(i, j);
+				}
 			}
 			return result;
 		}
 
-		static Matrix clMul(const Matrix& mat1, const Matrix& mat2)
-		{
-			Matrix result{ mat1.rows(), mat2.columns() };
-			//cout << "Creating Buffers" << endl;
-			cl_int err;
-			cl_mem mat1Buf = clCreateBuffer(OpenCL::context, CL_MEM_READ_ONLY, sizeof(T) * mat1.size(), NULL, &err);
-			if (err != 0)
-			{
-				std::cout << "Error creating mat1Buf: " << err << std::endl;
-				throw OPENCL_ERROR();
-			}
-			cl_mem mat2Buf = clCreateBuffer(OpenCL::context, CL_MEM_READ_ONLY, sizeof(T) * mat2.size(), NULL, &err);
-			if (err != 0)
-			{
-				std::cout << "Error creating mat2Buf: " << err << std::endl;
-				throw OPENCL_ERROR();
-			}
-			cl_mem resultBuf = clCreateBuffer(OpenCL::context, CL_MEM_WRITE_ONLY, sizeof(T) * result.size(), NULL, &err);
-			if (err != 0)
-			{
-				std::cout << "Error creating resultBuf: " << err << std::endl;
-				throw OPENCL_ERROR();
-			}
-
-			//cout << "Copying Data to Buffers" << endl;
-			err = clEnqueueWriteBuffer(OpenCL::queue, mat1Buf, CL_TRUE, 0, mat1.size() * sizeof(T), mat1.m_data, 0, NULL, NULL);
-			if (err != 0)
-			{
-				std::cout << "Error writing to mat1Buf: " << err << std::endl;
-				throw OPENCL_ERROR();
-			}
-			err = clEnqueueWriteBuffer(OpenCL::queue, mat2Buf, CL_TRUE, 0, mat2.size() * sizeof(T), mat2.m_data, 0, NULL, NULL);
-			if (err != 0)
-			{
-				std::cout << "Error writing to mat2Buf: " << err << std::endl;
-				throw OPENCL_ERROR();
-			}
-			int m1_rows = mat1.rows();
-			int m1_columns = mat1.columns();
-			int m2_columns = mat2.columns();
-			//cout << "Setting Kernel Arguments" << endl;
-			err = clSetKernelArg(mat_mul_kernel, 0, sizeof(mat1Buf), &mat1Buf);
-			if (err != 0)
-			{
-				std::cout << "Error setting arg 0: " << err << std::endl;
-				throw OPENCL_ERROR();
-			}
-			err = clSetKernelArg(mat_mul_kernel, 1, sizeof(mat2Buf), &mat2Buf);
-			if (err != 0)
-			{
-				std::cout << "Error setting arg 1: " << err << std::endl;
-				throw OPENCL_ERROR();
-			}
-			err = clSetKernelArg(mat_mul_kernel, 2, sizeof(int), &m1_rows);
-			if (err != 0)
-			{
-				std::cout << "Error setting arg 2: " << err << std::endl;
-				throw OPENCL_ERROR();
-			}
-			err = clSetKernelArg(mat_mul_kernel, 3, sizeof(int), &m1_columns);
-			if (err != 0)
-			{
-				std::cout << "Error setting arg 3: " << err << std::endl;
-				throw OPENCL_ERROR();
-			}
-			err = clSetKernelArg(mat_mul_kernel, 4, sizeof(int), &m2_columns);
-			if (err != 0)
-			{
-				std::cout << "Error setting arg 4: " << err << std::endl;
-				throw OPENCL_ERROR();
-			}
-			err = clSetKernelArg(mat_mul_kernel, 5, sizeof(resultBuf), &resultBuf);
-			if (err != 0)
-			{
-				std::cout << "Error setting arg 5: " << err << std::endl;
-				throw OPENCL_ERROR();
-			}
-
-			//cout << "Enqueueing Kernel" << endl;
-
-			const int DIMS = 2;
-			size_t* g_work_size = new size_t[DIMS];
-			g_work_size[0] = ((mat1.rows() / 16) + 1) * 16;
-			g_work_size[1] = ((mat2.columns() / 16) + 1) * 16;
-			size_t* l_work_size = new size_t[DIMS];
-			l_work_size[0] = 16;
-			l_work_size[1] = 16;
-			err = clEnqueueNDRangeKernel(OpenCL::queue, mat_mul_kernel, DIMS, NULL, g_work_size, l_work_size, 0, NULL, NULL);
-			if (err != 0)
-			{
-				std::cout << "Error enqueueing kernel: " << err << std::endl;
-				delete[] g_work_size;
-				delete[] l_work_size;
-
-				throw OPENCL_ERROR();
-			}
-			delete[] g_work_size;
-			delete[] l_work_size;
-
-			//cout << "Copying Buffer to Host" << endl;
-			err = clEnqueueReadBuffer(OpenCL::queue, resultBuf, CL_TRUE, 0, sizeof(T) * result.size(), result.m_data, 0, NULL, NULL);
-			if (err != 0)
-			{
-				std::cout << "Error reading resultBuf: " << err << std::endl;
-				throw OPENCL_ERROR();
-			}
-
-			clReleaseMemObject(mat1Buf);
-			clReleaseMemObject(mat2Buf);
-			clReleaseMemObject(resultBuf);
-
-			return result;
-		}
 #pragma endregion
 #pragma region Division
 		friend Matrix operator/(const Matrix& mat, T scl)
 		{
 			Matrix result{ mat.m_rows, mat.m_columns };
-			for (int i = 0; i < mat.m_size; i++)
+			for (int i = 0; i < mat.m_rows; i++)
 			{
-				result.m_data[i] = mat.m_data[i] / scl;
+				for (int j = 0; j < mat.m_columns; j++)
+				{
+					result(i, j) = mat(i, j) / scl;
+				}
 			}
 			return result;
 		}
@@ -1119,9 +1166,12 @@ namespace MatrixLibrary
 		friend Matrix operator/(T scl, const Matrix& mat)
 		{
 			Matrix result{ mat.m_rows, mat.m_columns };
-			for (int i = 0; i < mat.m_size; i++)
+			for (int i = 0; i < mat.m_rows; i++)
 			{
-				result.m_data[i] = scl / mat.m_data[i];
+				for (int j = 0; j < mat.m_columns; j++)
+				{
+					result(i, j) = scl / mat(i, j);
+				}
 			}
 			return result;
 		}
