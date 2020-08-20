@@ -18,7 +18,7 @@ namespace MatrixLibrary
 	template<class T>
 	class Matrix
 	{
-	  private:
+	  protected:
 		using MathFunction = T (*)(T);
 	    int m_rows;
 		int m_columns;
@@ -144,7 +144,13 @@ namespace MatrixLibrary
 				m_columns = mat.m_columns;
 				m_size = mat.m_size;
 				m_data = mat.m_data;
-				m_rowMajor = mat.m_rowMajor;
+				if (m_rowMajor != mat.m_rowMajor)
+				{
+					std::cout << "Attempted to assign an rvalue " << (mat.m_rowMajor ? "row major" : "column major") 
+						<< " matrix to a " << (m_rowMajor ? "row major" : "column major") << " matrix." << std::endl;
+
+					throw std::exception();
+				}
 
 				mat.m_data = nullptr;
 			}
@@ -176,7 +182,6 @@ namespace MatrixLibrary
 			return result;
 		}
 
-		// Need to fix to make it work for column major matrices
 		static Matrix fromString(const std::string& str, const std::string& itemSplitter, const std::string& rowSplitter, bool rowMajor)
 		{
 			int rows = count(str, rowSplitter) + 1;
@@ -620,7 +625,7 @@ namespace MatrixLibrary
 #pragma region Misc Operators
 		T& operator()(int row, int column)
 		{
-			return const_cast<T&>(std::as_const(*this).operator()(row, column));
+			return const_cast<T&>(std::as_const(*this)(row, column));
 		}
 
 		const T& operator()(int row, int column) const
@@ -633,7 +638,7 @@ namespace MatrixLibrary
 
 		T& operator[](int index)
 		{
-			return const_cast<T&>(std::as_const(*this).operator()[index]);
+			return const_cast<T&>(std::as_const(*this)[index]);
 		}
 
 		const T& operator[](int index) const
@@ -883,5 +888,129 @@ namespace MatrixLibrary
 		}
 #pragma endregion
 #pragma endregion
+	};
+
+
+	class Mat4 : public Matrix<float>
+	{
+	  public:
+		Mat4()
+			:Matrix<float>{ 4, 4, false }
+		{
+			
+		}
+
+		Mat4(const Matrix<float>& mat)
+			:Mat4()
+		{
+			if (mat.rows() != 4 || mat.columns() != 4)
+				throw std::exception();
+
+			for (int i = 0; i < m_rows; i++)
+			{
+				for (int j = 0; j < m_columns; j++)
+				{
+					(*this)(i, j) = mat(i, j);
+				}
+			}
+		}
+
+		static Mat4 identity()
+		{
+			Mat4 result;
+			for (int i = 0; i < 4; i++)
+			{
+				result(i, i) = 1;
+			}
+			return result;
+		}
+
+		Mat4 translate(float x, float y, float z)
+		{
+			Mat4 T = Mat4::identity();
+			T(0, 3) += x;
+			T(1, 3) += y;
+			T(2, 3) += z;
+			return (*this) * T;
+		}
+		
+		Mat4 scale(float x, float y, float z)
+		{
+			Mat4 S = Mat4::identity();
+			S(0, 0) *= x;
+			S(1, 1) *= y;
+			S(2, 2) *= z;
+			return (*this) * S;
+		}
+
+		Mat4 rotate(float radians, float axisX, float axisY, float axisZ)
+		{
+			Mat4 R = (*this);
+
+			float c = cos(radians);
+			float s = sin(radians);
+
+			float axisLength = sqrt(axisX * axisX + axisY * axisY + axisZ * axisZ);
+
+			float rX = axisX / axisLength;
+			float rY = axisY / axisLength;
+			float rZ = axisZ / axisLength;
+
+			R(0, 0) = c + rX * rX * (1 - c);
+			R(0, 1) = rX * rY * (1 - c) - rZ * s;
+			R(0, 2) = rX * rZ * (1 - c) + rY * s;
+			R(0, 3) = 0;
+
+			R(1, 0) = rY * rX * (1 - c) + rZ * s;
+			R(1, 1) = c + rY * rY * (1 - c);
+			R(1, 2) = rY * rZ * (1 - c) - rX * s;
+			R(1, 3) = 0;
+
+			R(2, 0) = rZ * rX * (1 - c) - rY * s;
+			R(2, 1) = rZ * rY * (1 - c) + rX * s;
+			R(2, 2) = c + rZ * rZ * (1 - c);
+			R(2, 3) = 0;
+
+			R(3, 0) = 0;
+			R(3, 1) = 0;
+			R(3, 2) = 0;
+			R(3, 3) = 1;
+
+			return (*this) * R;
+		}
+	};
+
+	class Vec4 : public Matrix<float>
+	{
+	  public:
+
+		Vec4(float xVal, float yVal, float zVal, float wVal)
+			: Matrix<float>{ 4, 1, false }
+		{
+			(*this)[0] = xVal;
+			(*this)[1] = yVal;
+			(*this)[2] = zVal;
+			(*this)[3] = wVal;
+		}
+
+	  	Vec4()
+			:Vec4{0, 0, 0, 0}
+		{
+			
+		}
+
+		friend Vec4 operator*(const Mat4& m, const Vec4& v)
+		{
+			Vec4 result;
+
+			for (int i = 0; i < m.rows(); i++)
+			{
+				for (int j = 0; j < m.columns(); j++)
+				{
+					result[i] += m(i, j) * v[j];
+				}
+			}
+			return result;
+		}
 	};
 }

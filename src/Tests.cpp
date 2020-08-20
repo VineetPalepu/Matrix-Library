@@ -7,12 +7,11 @@ using namespace std;
 
 int main()
 {
-	Matrix<int> a{2, 2, true};
-	Matrix<int> b{2, 2, true};
-
-	a.randInit(0, 10);
-	b.randInit(0, 10);
-
-	(a * b).print();
+	Vec4 v{1, 324, -12, 1};
+	cout << v[0] << " " << v[1] << " " << v[2] << " " << v[3] << endl;
+	Mat4 t = Mat4::identity();
+	t = t.translate(6, 3, -3);
+	v = t * v;
+	cout << v[0] << " " << v[1] << " " << v[2] << " " << v[3] << endl;
 }
 	
