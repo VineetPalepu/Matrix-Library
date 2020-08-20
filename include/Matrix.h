@@ -369,7 +369,7 @@ namespace MatrixLibrary
 			f << toString(itemDelimiter, rowDelimiter);
 		}
 
-		T* data()
+		T* data() const
 		{
 			return m_data;
 		}
