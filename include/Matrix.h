@@ -924,6 +924,19 @@ namespace MatrixLibrary
 			return result;
 		}
 
+		static Mat4 ortho(float left, float right, float bottom, float top, float zNear, float zFar)
+		{
+			Mat4 result;
+			result(0, 0) = 2 / (right - left);
+			result(1, 1) = 2 / (top - bottom);
+			result(2, 2) = -2 / (zFar - zNear);
+			result(3, 3) = 1;
+			
+			result(0, 3) = -(right + left) / (right - left);
+			result(1, 3) = -(top + bottom) / (top - bottom);
+			result(2, 3) = -(zFar + zNear) / (zFar - zNear);
+		}
+
 		Mat4 translate(float x, float y, float z)
 		{
 			Mat4 T = Mat4::identity();
