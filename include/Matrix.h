@@ -935,6 +935,8 @@ namespace MatrixLibrary
 			result(0, 3) = -(right + left) / (right - left);
 			result(1, 3) = -(top + bottom) / (top - bottom);
 			result(2, 3) = -(zFar + zNear) / (zFar - zNear);
+
+			return result;
 		}
 
 		static Mat4 perspective(float fov, float aspectRatio, float zNear, float zFar)
