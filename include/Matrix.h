@@ -954,7 +954,41 @@ namespace MatrixLibrary
 			return result;
 		}
 
-		Mat4 translate(float x, float y, float z)
+		static Mat4 lookAt(const Vec3& camPos, const Vec3& target, const Vec3& up)
+		{
+			Vec3 Z = ((Vec3)(camPos - target)).normalize();
+			Vec3 X = up.cross(Z);
+			Vec3 Y = Z.cross(X);
+
+			X = X.normalize();
+			Y = Y.normalize();
+
+			Mat4 result;
+
+			result(0, 0) = X[0];
+			result(0, 1) = X[1];
+			result(0, 2) = X[2];
+			result(0, 3) = -X.dot(camPos);
+
+			result(1, 0) = Y[0];
+			result(1, 1) = Y[1];
+			result(1, 2) = Y[2];
+			result(1, 3) = -Y.dot(camPos);
+
+			result(2, 0) = Z[0];
+			result(2, 1) = Z[1];
+			result(2, 2) = Z[2];
+			result(2, 3) = -Z.dot(camPos);
+
+			result(3, 0) = 0;
+			result(3, 1) = 0;
+			result(3, 2) = 0;
+			result(3, 3) = 1;
+
+			return result;
+		}
+
+		Mat4 translate(float x, float y, float z) const
 		{
 			Mat4 T = Mat4::identity();
 			T(0, 3) += x;
@@ -963,7 +997,7 @@ namespace MatrixLibrary
 			return (*this) * T;
 		}
 		
-		Mat4 scale(float x, float y, float z)
+		Mat4 scale(float x, float y, float z) const
 		{
 			Mat4 S = Mat4::identity();
 			S(0, 0) *= x;
@@ -1028,6 +1062,18 @@ namespace MatrixLibrary
 			
 		}
 
+		Vec4(const Matrix<float> &mat)
+			: Vec4()
+		{
+			if (!mat.isVector() || mat.size() != 4)
+				throw std::exception();
+
+			for (int i = 0; i < m_size; i++)
+			{
+				(*this)[i] = mat[i];
+			}
+		}
+
 		friend Vec4 operator*(const Mat4& m, const Vec4& v)
 		{
 			Vec4 result;
@@ -1040,6 +1086,57 @@ namespace MatrixLibrary
 				}
 			}
 			return result;
+		}
+	};
+
+	class Vec3 : public Matrix<float>
+	{
+	  public:
+		Vec3(float xVal, float yVal, float zVal)
+			: Matrix<float>{ 3, 1, false }
+		{
+			(*this)[0] = xVal;
+			(*this)[1] = yVal;
+			(*this)[2] = zVal;
+		}
+
+		Vec3()
+			:Vec3{0, 0, 0}
+		{
+
+		}
+
+		Vec3(const Matrix<float> &mat)
+			: Vec3()
+		{
+			if (!mat.isVector() || mat.size() != 3)
+				throw std::exception();
+
+			for (int i = 0; i < m_size; i++)
+			{
+				(*this)[i] = mat[i];
+			}
+		}
+
+		Vec3 normalize() const
+		{
+			float x = (*this)[0];
+			float y = (*this)[1];
+			float z = (*this)[2];
+			float length = sqrt(x * x + y * y + z * z);
+			return Vec3(x, y, z) / length;
+		}
+
+		Vec3 cross(const Vec3& v) const
+		{
+			return Vec3((*this)[1] * v[2] - (*this)[2] * v[1],
+					    (*this)[2] * v[0] - (*this)[0] * v[2],
+					    (*this)[0] * v[1] - (*this)[1] * v[0]);
+		}
+
+		float dot(const Vec3& v) const
+		{
+			return this->scalarMultiply(v).sum();
 		}
 	};
 }
