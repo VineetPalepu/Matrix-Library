@@ -937,6 +937,21 @@ namespace MatrixLibrary
 			result(2, 3) = -(zFar + zNear) / (zFar - zNear);
 		}
 
+		static Mat4 perspective(float fov, float aspectRatio, float zNear, float zFar)
+		{
+			Mat4 result;
+			float tanHalfFOV = tan(fov / 2);
+
+			result(0, 0) = 1 / (aspectRatio * tanHalfFOV);
+			result(1, 1) = 1 / (tanHalfFOV);
+			result(2, 2) = -(zFar + zNear) / (zFar - zNear);
+			
+			result(3, 2) = -1;
+			result(2, 3) = -(2 * zFar * zNear) / (zFar - zNear);
+
+			return result;
+		}
+
 		Mat4 translate(float x, float y, float z)
 		{
 			Mat4 T = Mat4::identity();
