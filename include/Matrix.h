@@ -143,7 +143,7 @@ namespace MatrixLibrary
 				m_columns = mat.m_columns;
 				m_size = mat.m_size;
 				m_data = mat.m_data;
-				if (m_rowMajor != mat.m_rowMajor)
+				if (!mat.isVector() && m_rowMajor != mat.m_rowMajor)
 				{
 					std::cout << "Attempted to assign an rvalue " << (mat.m_rowMajor ? "row major" : "column major") 
 						<< " matrix to a " << (m_rowMajor ? "row major" : "column major") << " matrix." << std::endl;
