@@ -85,7 +85,6 @@ namespace MatrixLibrary
 		Matrix(const Matrix& mat)
 			:Matrix{ mat.m_rows, mat.m_columns, mat.m_rowMajor }
 		{
-			std::cout << "Copy Constructor" << std::endl;
 			for (int i = 0; i < m_rows; i++)
 			{
 				for (int j = 0; j < m_columns; j++)
