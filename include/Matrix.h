@@ -27,7 +27,7 @@ namespace MatrixLibrary
 		const bool m_rowMajor;
 
 #pragma region Random
-		template <class NumericType, typename Enable = void>
+		template <class NumericType, typename Enable>
 		class Random;
 
 		template <class FloatingType>
@@ -276,7 +276,7 @@ namespace MatrixLibrary
 #pragma region Getters
 		bool isVector() const
 		{
-			return m_columns == 1;
+			return m_columns == 1 || m_rows == 1;
 		}
 		bool isSquare() const
 		{
@@ -392,10 +392,9 @@ namespace MatrixLibrary
 		// TODO: Make this work with negative indexing?
 		Matrix subMatrix(int rowStart, int rowEnd, int colStart, int colEnd) const
 		{
-			if (rowStart < 0 || colStart < 0 || rowEnd > m_rows || colEnd > m_columns)
-			{
+			if (rowStart < 0 || rowStart > m_rows || colStart < 0 || colStart > m_columns ||
+				rowEnd < 0 || rowEnd > m_rows || colEnd < 0 || colEnd > m_columns)
 				throw std::exception();
-			}
 
 			bool reverseRows = rowStart > rowEnd;
 			bool reverseCols = colStart > colEnd;
@@ -408,6 +407,26 @@ namespace MatrixLibrary
 					result(abs(i - rowStart), abs(j - colStart)) = (*this)(i, j);
 				}
 			}
+			return result;
+		}
+
+		Matrix subVector(int startIndex, int endIndex)
+		{
+			if (!isVector())
+				throw std::exception();
+
+			if (startIndex < 0 || startIndex > m_size || endIndex < 0 || endIndex > m_size)
+				throw std::exception();
+
+			bool reverse = startIndex > endIndex;
+
+			int newSize = abs(endIndex - startIndex);
+			Matrix result {(m_rows == 1 ? 1 : newSize), (m_columns == 1 ? 1 : newSize)};
+			for (int i = startIndex; (reverse ? i > endIndex : i < endIndex); (reverse ? i-- : i++))
+			{
+				result[abs(i - startIndex)] = (*this)[i];
+			}
+
 			return result;
 		}
 
@@ -659,7 +678,7 @@ namespace MatrixLibrary
 		{
 			#ifndef NDEBUG
 			// Check bounds only if debug
-			if (row < -m_rows || row >= m_rows || col < -m_cols || col >= m_cols)
+			if (row < -m_rows || row >= m_rows || column < -m_columns || column >= m_columns)
 				throw std::exception();
 			#endif
 			
