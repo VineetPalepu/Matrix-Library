@@ -37,7 +37,7 @@ namespace MatrixLibrary
 			std::mt19937 generator;
 			std::uniform_real_distribution<FloatingType> distr;
 
-		public:
+	  public:
 			Random(FloatingType min, FloatingType max)
 				: rand_dev{}, generator{rand_dev()}, distr{min, max}
 			{
@@ -55,7 +55,7 @@ namespace MatrixLibrary
 			std::mt19937 generator;
 			std::uniform_int_distribution<IntegralType> distr;
 
-		public:
+		  public:
 			Random(IntegralType min, IntegralType max)
 				: rand_dev{}, generator{rand_dev()}, distr{min, max}
 			{
@@ -181,7 +181,7 @@ namespace MatrixLibrary
 			return result;
 		}
 
-		static Matrix fromString(const std::string& str, const std::string& itemSplitter, const std::string& rowSplitter, bool rowMajor)
+		static Matrix fromString(const std::string& str, const std::string& itemSplitter = ",", const std::string& rowSplitter = "\n", bool rowMajor = true)
 		{
 			int rows = count(str, rowSplitter) + 1;
 			int columns = count(str.substr(0, str.find(rowSplitter)), itemSplitter) + 1;
@@ -238,7 +238,7 @@ namespace MatrixLibrary
 			return count;
 		}
 
-		static Matrix fromFile(const std::string& fileName, const std::string& itemSplitter, const std::string& rowSplitter, bool rowMajor)
+		static Matrix fromFile(const std::string& fileName, const std::string& itemSplitter = ",", const std::string& rowSplitter = "\n", bool rowMajor = true)
 		{
 			std::ifstream i{ fileName };
 			std::stringstream s;
@@ -391,21 +391,20 @@ namespace MatrixLibrary
 
 		Matrix subMatrix(int rowStart, int rowEnd, int colStart, int colEnd) const
 		{
-			if (rowStart > rowEnd || colStart > colEnd)
-			{
-				throw std::exception();
-			}
 			if (rowStart < 0 || colStart < 0 || rowEnd > m_rows || colEnd > m_columns)
 			{
 				throw std::exception();
 			}
 
-			Matrix result{ rowEnd - rowStart, colEnd - colStart };
-			for (int i = rowStart; i < rowEnd; i++)
+			bool reverseRows = rowStart > rowEnd;
+			bool reverseCols = colStart > colEnd;
+
+			Matrix result{ abs(rowEnd - rowStart), abs(colEnd - colStart) };
+			for (int i = rowStart; (reverseRows ? i > rowEnd : i < rowEnd); (reverseRows ? i-- : i++))
 			{
-				for (int j = colStart; j < colEnd; j++)
+				for (int j = colStart; (reverseCols ? j > colEnd : j < colEnd); (reverseCols ? j-- : j++))
 				{
-					result(i - rowStart, j - colStart) = (*this)(i, j);
+					result(abs(i - rowStart), abs(j - colStart)) = (*this)(i, j);
 				}
 			}
 			return result;
