@@ -389,6 +389,7 @@ namespace MatrixLibrary
 			return result;
 		}
 
+		// TODO: Make this work with negative indexing?
 		Matrix subMatrix(int rowStart, int rowEnd, int colStart, int colEnd) const
 		{
 			if (rowStart < 0 || colStart < 0 || rowEnd > m_rows || colEnd > m_columns)
@@ -408,6 +409,34 @@ namespace MatrixLibrary
 				}
 			}
 			return result;
+		}
+
+		T max()
+		{
+			T max_val = (*this)[0];
+			for (int i = 1; i < m_size; i++)
+			{
+				if ((*this)[i] > max_val)
+				{
+					max_val = (*this)[i];
+				}
+			}
+
+			return max_val;
+		}
+
+		T min()
+		{
+			T min_val = (*this)[0];
+			for (int i = 1; i < m_size; i++)
+			{
+				if ((*this)[i] < min_val)
+				{
+					min_val = (*this)[i];
+				}
+			}
+
+			return min_val;
 		}
 
 		Matrix row(int row) const
@@ -628,10 +657,16 @@ namespace MatrixLibrary
 
 		const T& operator()(int row, int column) const
 		{
+			#ifndef NDEBUG
+			// Check bounds only if debug
+			if (row < -m_rows || row >= m_rows || col < -m_cols || col >= m_cols)
+				throw std::exception();
+			#endif
+			
 			if (m_rowMajor)
-				return m_data[row * m_columns + column];
+				return m_data[(row < 0 ? m_rows + row : row) * m_columns + (column < 0 ? m_columns + column : column)];
 			else
-				return m_data[column * m_rows + row];
+				return m_data[(column < 0 ? m_columns + column : column) * m_rows + (row < 0 ? m_rows + row : row)];
 		}
 
 		T& operator[](int index)
@@ -641,10 +676,13 @@ namespace MatrixLibrary
 
 		const T& operator[](int index) const
 		{
-			if (index < 0 || index >= m_size)
+			#ifndef NDEBUG
+			// Check bounds only if debug
+			if (index < -m_size || index >= m_size)
 				throw std::exception();
+			#endif
 
-			return m_data[index];
+			return m_data[(index < 0 ? m_size + index : index)];
 		}
 
 		bool operator==(const Matrix& mat)
