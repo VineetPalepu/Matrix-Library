@@ -12,6 +12,9 @@
 // TODO: Add resize method? or at least figure out whether or not
 // a feature is necessary. Assignment has the same functionality, 
 // but a resize() method could be more intuitive.
+// TODO: Check validity of matrix-matrix operations now that 
+// m_rowMajor has been implemented. Using (*this)[i] could cause
+// issues
 namespace MatrixLibrary
 {
 
