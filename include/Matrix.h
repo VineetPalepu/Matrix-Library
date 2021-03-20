@@ -30,7 +30,7 @@ namespace MatrixLibrary
 		const bool m_rowMajor;
 
 #pragma region Random
-		template <class NumericType, typename Enable>
+		template <class NumericType, typename Enable = void>
 		class Random;
 
 		template <class FloatingType>
@@ -249,6 +249,23 @@ namespace MatrixLibrary
 			return fromString(s.str(), itemSplitter, rowSplitter, rowMajor);
 		}
 
+		static Matrix load(const std::string& fileName)
+		{
+			std::ifstream i{ fileName, std::ios::in | std::ios::binary };
+			int rows = 0;
+			int columns = 0;
+			bool rowMajor = 0;
+			i.read((char*)&rows, std::streamsize(sizeof(int)));
+			i.read((char*)&columns, std::streamsize(sizeof(int)));
+			i.read((char*)&rowMajor, std::streamsize(sizeof(bool)));
+
+			Matrix result { rows, columns, rowMajor };
+
+			i.read((char*)result.m_data, std::streamsize(result.m_size * sizeof(T)));
+
+			return result;
+		}
+
 		static Matrix identity(int n)
 		{
 			Matrix result{ n, n };
@@ -344,7 +361,7 @@ namespace MatrixLibrary
 			return "(" + std::to_string(m_rows) + ", " + std::to_string(m_columns) + ")";
 		}
 
-		std::string toString(std::string itemDelimiter, std::string rowDelimiter, int precision = 3) const
+		std::string toString(const std::string& itemDelimiter, const std::string& rowDelimiter, int precision = 3) const
 		{
 			std::string s;
 			s.reserve(m_size * 5);
@@ -365,10 +382,20 @@ namespace MatrixLibrary
 			return result.str();
 		}
 
-		void toFile(std::string fileName, std::string itemDelimiter, std::string rowDelimiter, int precision = 3) const
+		void toFile(const std::string& fileName, const std::string& itemDelimiter, const std::string& rowDelimiter, int precision = 3) const
 		{
 			std::ofstream f(fileName);
 			f << toString(itemDelimiter, rowDelimiter);
+		}
+
+		void save(const std::string& fileName)
+		{
+			std::ofstream file { fileName, std::ios::out | std::ios::binary };
+			file.write((char*)&m_rows, std::streamsize(sizeof(m_rows)));
+			file.write((char*)&m_columns, std::streamsize(sizeof(m_columns)));
+			file.write((char*)&m_rowMajor, std::streamsize(sizeof(m_rowMajor)));
+			file.write((char*)m_data, std::streamsize(m_size * sizeof(T)));
+			file.close();
 		}
 
 		T* data() const
